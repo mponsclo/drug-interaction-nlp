@@ -1,22 +1,11 @@
-# Core machine learning and NLP libraries
+# NLP and machine learning
 nltk>=3.6
 scikit-learn>=1.0.0
-networkx>=2.5
-
-# CRF implementation for sequence labeling
 python-crfsuite>=0.9.7
-
-# Standard scientific computing (typically included with most Python installations)
-# But explicitly listed for completeness
 numpy>=1.19.0
 
-# Optional: For Jupyter notebook support (if working with .ipynb files)
-# Uncomment if needed:
-# jupyter>=1.0.0
-# matplotlib>=3.3.0
-# pandas>=1.2.0
-# seaborn>=0.11.0
+# Graph algorithms for dependency path features
+networkx>=2.5
 
-# Note: CoreNLP server is required for DDI tasks but must be installed separately
-# Download from: https://stanfordnlp.github.io/CoreNLP/
-# Run with: java -mx4g -cp "*" edu.stanford.nlp.pipeline.StanfordCoreNLPServer -port 9000 -timeout 15000
+# Deep learning (for neural network notebooks)
+tensorflow>=2.4

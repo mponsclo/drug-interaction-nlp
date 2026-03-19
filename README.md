@@ -1,189 +1,156 @@
-# Advanced Human Language Technologies (AHLT)
+# Biomedical NLP: Drug NER & Drug-Drug Interaction Detection
 
-[![Python](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+> Identifying drug names and detecting pharmacological interactions in biomedical text using three incremental approaches: rule-based heuristics, classical machine learning, and deep learning.
 
-This repository contains implementations for biomedical Natural Language Processing tasks, developed as part of the Advanced Human Language Technologies course at UPC (Universitat Politècnica de Catalunya).
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![TensorFlow 2.x](https://img.shields.io/badge/TensorFlow-2.x-orange.svg)](https://www.tensorflow.org/)
+[![CRFsuite](https://img.shields.io/badge/CRFsuite-sequence%20labeling-green.svg)](https://python-crfsuite.readthedocs.io/)
 
-## 🎯 Overview
+## Pipeline Overview
 
-The project focuses on three core biomedical NLP tasks:
+| Task | Rule-Based | Classical ML | Deep Learning |
+|------|-----------|-------------|---------------|
+| **NER** (drug name recognition) | Suffix/prefix heuristics + dictionary lookup | CRF with lexical and contextual features | BiLSTM with word embeddings |
+| **DDI** (drug-drug interaction) | Dependency-tree patterns (stub) | MaxEnt with syntactic path features | LSTM + Conv1D hybrid |
 
-- **Named Entity Recognition (NER)**: Drug name identification and classification
-- **Drug-Drug Interaction (DDI) Detection**: Identifying pharmacological interactions between drug entities
-- **Neural Networks**: Deep learning approaches for both NER and DDI classification
+## Project Structure
 
-## 🚀 Quick Start
+```
+.
+├── ner/                        # Named Entity Recognition
+│   ├── baseline.py             #   Rule-based: suffix patterns + DrugBank lookup
+│   ├── feature_extractor.py    #   CRF: 18+ features per token (POS, lemma, affixes)
+│   ├── crf_learner.py          #   CRF: model training with L1/L2 regularization
+│   ├── crf_classifier.py       #   CRF: BIO tag prediction and entity assembly
+│   ├── utils.py                #   Feature file parsing utilities
+│   └── notebooks/              #   EDA, baseline analysis, CRF experimentation
+├── ddi/                        # Drug-Drug Interaction Detection
+│   ├── baseline.py             #   Rule-based scaffold (stub)
+│   ├── feature_extractor.py    #   MaxEnt: dependency path + syntactic features
+│   ├── learner.py              #   MaxEnt: MEGAM-backed classifier training
+│   ├── utils.py                #   Feature file parsing utilities
+│   ├── runner.sh               #   End-to-end pipeline script
+│   └── notebooks/              #   EDA, baseline analysis, MaxEnt experimentation
+├── neural/                     # Deep Learning (Keras/TensorFlow)
+│   └── notebooks/
+│       ├── 01_ner_nn.ipynb     #   BiLSTM for drug name recognition
+│       └── 02_ddi_nn.ipynb     #   LSTM+Conv1D for interaction classification
+├── shared/
+│   └── evaluator.py            # Unified evaluation (precision, recall, F1)
+├── resources/                  # Drug name databases (DrugBank, HSDB)
+└── reports/                    # Technical reports (PDF)
+```
 
-### Prerequisites
-
-- Python 3.7+
-- Java 8+ (for CoreNLP server, DDI tasks only)
+## Quick Start
 
 ### Installation
 
-1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd ahlt-1
-```
-
-2. Install Python dependencies:
-```bash
+git clone https://github.com/mponsclo/Advanced_Human_Language_Technologies.git
+cd Advanced_Human_Language_Technologies
 pip install -r requirements.txt
+python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords'); nltk.download('wordnet'); nltk.download('averaged_perceptron_tagger')"
 ```
 
-3. Download NLTK data (first time only):
-```python
-import nltk
-nltk.download('punkt')
-nltk.download('stopwords')
-nltk.download('wordnet')
-nltk.download('averaged_perceptron_tagger')
-```
+### NER: Rule-Based Baseline
 
-4. **For DDI tasks only**: Set up CoreNLP server:
 ```bash
-# Download Stanford CoreNLP from https://stanfordnlp.github.io/CoreNLP/
-# Extract and run:
+cd ner
+python baseline.py data_dir output.txt           # suffix heuristics only
+python baseline.py -l data_dir output.txt         # with dictionary lookup
+```
+
+### NER: CRF Pipeline
+
+```bash
+cd ner
+python feature_extractor.py train_dir train_feats.txt
+python feature_extractor.py test_dir test_feats.txt
+python crf_learner.py model.crf train_feats.txt
+python crf_classifier.py model.crf test_feats.txt
+```
+
+### DDI: Full Pipeline
+
+```bash
+cd ddi
+DATA_DIR=/path/to/semeval/data bash runner.sh
+```
+
+Requires a running [Stanford CoreNLP](https://stanfordnlp.github.io/CoreNLP/) server:
+
+```bash
 java -mx4g -cp "*" edu.stanford.nlp.pipeline.StanfordCoreNLPServer -port 9000 -timeout 15000
 ```
 
-## 📊 Usage
+### Neural Networks
 
-### Named Entity Recognition (NER)
+Open the notebooks in `neural/notebooks/` with Jupyter or Google Colab. Each notebook is self-contained with data loading, model definition, training, and evaluation.
 
-#### Baseline NER (Rule-based)
-```bash
-cd "1. NER"
+## Methodology
 
-# Basic usage
-python3 baseline-NER.py train_data_path output_file_name
+### 1. Rule-Based Baseline (NER)
 
-# With drug database lookup
-python3 baseline-NER.py -l train_data_path output_file_name
-```
+Classifies tokens using pharmacological suffix patterns and dictionary lookup:
 
-#### CRF-based NER
-```bash
-cd "1. NER"
+- **Suffix matching**: 3/4/5-letter suffixes (*-azole*, *-mycin*, *-arin*, *-lol*, ...) map to `drug`; group keywords (*inhibitor*, *steroid*, *NSAID*, ...) map to `group`; all-caps >=4 chars map to `brand`
+- **Dictionary lookup** (optional `-l` flag): checks tokens against DrugBank (~3.9 MB, categorized as drug/brand/group) and HSDB (~4,700 entries)
+- **Bigram assembly**: consecutive tokens separated by exactly 2 characters are joined and classified as a single entity
+- Stopwords and non-alphabetic tokens are filtered before classification
 
-# Extract features
-python3 feature_extractor.py train_data_path > features_train.txt
-python3 feature_extractor.py test_data_path > features_test.txt
+### 2. CRF Sequence Labeling (NER)
 
-# Train CRF model
-python3 crf-learner.py model_name features_train.txt
+BIO-tagged Conditional Random Fields with 25+ handcrafted features per token:
 
-# Run classification
-python3 crf-classifier.py model_name features_test.txt entities_file output_file
-```
+| Feature Group | Features |
+|--------------|----------|
+| Surface | word form, lowercase, length |
+| Morphology | 3/4/5-char suffixes and prefixes |
+| Lexical | POS tag, lemma, digit count, contains dash |
+| Boolean | is capitalized, is uppercase, is digit, is stopword, is punctuation |
+| Context | previous/next token form, suffixes, and boolean properties |
+| Dictionary | DrugBank/HSDB lookup result (optional) |
 
-### Drug-Drug Interaction (DDI) Detection
+- **CRF hyperparameters**: L1=0.2, L2=0.001, max iterations=1000
+- Sequence-aware: captures entity boundaries via B-I-O transitions
 
-#### Complete Pipeline (Recommended)
-```bash
-cd "2. DDI"
-bash runner.sh
-```
+### 3. MaxEnt Classifier (DDI)
 
-#### Manual Steps
-```bash
-cd "2. DDI"
+Maximum Entropy model over syntactic features extracted from Stanford CoreNLP dependency parses:
 
-# Extract features
-python3 feature_extractor.py ../../labAHLT/data/train > feats.dat
-python3 feature_extractor.py ../../labAHLT/data/test > feats_test.dat
+- **Dependency path**: shortest path between entity pair in the undirected dependency graph (via networkx)
+- **Path traversal**: encodes the sequence of dependency relations and POS tags from each entity up to their common ancestor
+- **Head features**: lemma and POS tag of each entity's syntactic head; whether entities share a head; whether shared head is a verb
+- **Clue verbs**: presence of *administer*, *enhance*, *interact*, *coadminister*, *increase*, *decrease* on the path
+- **Negation signals**: count of negative words (*not*, *without*, *prevent*, *unlikely*, ...) in path and full sentence
+- **Context**: lemmas and POS tags of words outside the dependency path; types of other entities in the sentence
+- Classifies pairs as: `effect`, `mechanism`, `advice`, `int`, or `null`
 
-# Train and classify
-python3 learner.py feats.dat feats_test.dat output.dat
+### 4. Deep Learning
 
-# Evaluate
-python3 evaluator.py DDI ../../labAHLT/data/test output.dat
-```
+#### NER: Multi-Input BiLSTM (2M parameters)
 
-### Evaluation
+Three parallel branches (word, suffix, POS tag), each with a 64-dim embedding + BiLSTM (128 units), concatenated into a final BiLSTM (64) + BiRNN (64) + Dense (10, softmax). Uses pre-trained GloVe 6B embeddings. Trained with Adam (lr=0.005, amsgrad).
 
-```bash
-# Evaluate NER results
-python3 "1. NER/evaluator.py" NER gold_standard_dir predictions_file
+#### DDI: BiLSTM + Conv1D Hybrid (697K parameters)
 
-# Evaluate DDI results
-python3 evaluator.py DDI gold_standard_dir predictions_file
-```
+Three branches (word, suffix, prefix) with BiLSTM (32 units each), concatenated into BiLSTM (64) + Conv1D (128 filters, kernel=5) + GlobalMaxPool + Dense (5, softmax). GloVe 16-dim word embeddings. Trained with Adam (lr=0.005) for 5 epochs.
 
-## 📁 Project Structure
+## Results
 
-```
-ahlt-1/
-├── 1. NER/                    # Named Entity Recognition
-│   ├── baseline-NER.py        # Rule-based NER implementation
-│   ├── crf-classifier.py      # CRF-based classifier
-│   ├── crf-learner.py         # CRF model training
-│   ├── feature_extractor.py   # Feature engineering
-│   ├── evaluator.py           # Evaluation metrics
-│   ├── utils.py               # Utility functions
-│   └── *.ipynb                # Jupyter notebooks for experimentation
-├── 2. DDI/                    # Drug-Drug Interaction Detection
-│   ├── baseline-DDI.py        # Rule-based DDI detection
-│   ├── feature_extractor.py   # DDI feature extraction
-│   ├── learner.py             # ML model training
-│   ├── runner.sh              # Complete pipeline script
-│   ├── utils.py               # DDI utilities
-│   └── *.ipynb                # Analysis notebooks
-├── 3. NN/                     # Neural Network implementations
-│   ├── *.nn                   # Pre-trained models
-│   ├── *.txt                  # Data splits
-│   └── *.ipynb                # NN experimentation notebooks
-├── resources/                 # Drug databases
-│   ├── HSDB.txt               # Simple drug database
-│   └── DrugBank.txt           # Comprehensive drug database
-├── requirements.txt           # Python dependencies
-└──README.md                  # This file
-```
+| Task | Method | Metric | Score |
+|------|--------|--------|-------|
+| DDI | BiLSTM + Conv1D | Validation accuracy | 87.4% |
+| DDI | BiLSTM + Conv1D | Test macro-F1 | 42.2% |
+| DDI | BiLSTM + Conv1D | Best class F1 (effect) | 57.4% |
 
-## 🔧 Technical Details
+*NER metrics are generated at runtime via the evaluator; see notebooks for detailed per-class breakdowns.*
 
-### Data Format
+## Data
 
-- **Input**: XML files with sentence-level annotations
-- **Entities**: Marked with `charOffset`, `text`, and `type` attributes
-- **DDI Pairs**: Entity pairs with interaction classifications
-- **Features**: Tab-separated feature vectors for ML training
+This project uses the [SemEval-2013 Task 9: DDIExtraction](https://www.cs.york.ac.uk/semeval-2013/task9/) dataset (~11,600 drug entities, ~23,100 DDI training pairs across 4 interaction types). The data is not included in this repository -- obtain it separately and point scripts to it via the `data_dir` argument or `DATA_DIR` environment variable.
 
-### Key Dependencies
+## Academic Context
 
-- **NLTK**: Natural language processing toolkit
-- **python-crfsuite**: Conditional Random Fields implementation
-- **scikit-learn**: Machine learning library
-- **networkx**: Graph algorithms for dependency parsing
-- **Stanford CoreNLP**: Dependency parsing (external server)
-
-### Drug Databases
-
-- `HSDB.txt`: Simple drug name database
-- `DrugBank.txt`: Comprehensive database with categories (drug|brand|group)
-
-## 📈 Performance
-
-The implementations include several approaches with varying performance characteristics:
-
-- **Rule-based methods**: Fast, interpretable, good baseline performance
-- **CRF models**: Better sequence modeling, improved NER accuracy
-- **Neural networks**: State-of-the-art performance on both tasks
-- **Feature engineering**: Syntactic and semantic features for DDI detection
-
-## 🤝 Contributing
-
-This is an academic project for the AHLT course. For development guidelines and technical details, see `CLAUDE.md`.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🏫 Academic Context
-
-**Course**: Advanced Human Language Technologies  
-**Institution**: Universitat Politècnica de Catalunya (UPC)  
-**Focus**: Biomedical Natural Language Processing
-
+**Course**: Advanced Human Language Technologies
+**Institution**: Universitat Politecnica de Catalunya (UPC)

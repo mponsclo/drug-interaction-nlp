@@ -1,9 +1,29 @@
+# OS
 .DS_Store
-.vscode
-.idea
-.ipynb_checkpoints
-__pycache__
-ahlt-venv
 
-*evaluator.py*
+# IDE
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+ahlt-venv/
+*.egg-info/
+
+# Data artifacts (generated, not source)
+*.dat
+*.pkl
+
+# Model files
+*.nn/
+
+# Results and output files
+NER-result*
+results.txt
+train_feats.txt
+
+# External tools
 *megam*
